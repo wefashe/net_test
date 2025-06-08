@@ -28,6 +28,8 @@ jobs:
         run: |
           echo "REPO_URL=https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases/latest" >> $GITHUB_ENV
           echo "TARGET_FILE=worker.zip" >> $GITHUB_ENV
+          echo "VERSION_FILE=version.txt" >> $GITHUB_ENV
+          echo "README_FILE=README.md" >> $GITHUB_ENV
 
       - name: 检查更新
         id: check_update
@@ -40,9 +42,9 @@ jobs:
           log "开始检查更新..."
           echo "changed=false" >> $GITHUB_OUTPUT # 默认未更新
 
-          # 获取本地版本
-          LOCAL_VERSION=$(cat version.txt 2>/dev/null || echo "")
-          log "本地版本: ${LOCAL_VERSION:-无}"
+          # 获取当前版本
+          LOCAL_VERSION=$(cat $VERSION_FILE 2>/dev/null || echo "")
+          log "当前版本: ${LOCAL_VERSION:-无}"
 
           # 获取最新 Release
           log "获取最新 Release 信息..."
@@ -62,6 +64,7 @@ jobs:
           fi
 
           REMOTE_VERSION=$(echo "$RESPONSE" | jq -r '.tag_name')
+          REMARK_BODY=$(echo "$RESPONSE" | jq -r '.body')
           DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.assets[] | select(.name == "'"$TARGET_FILE"'") | .browser_download_url')
 
           if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
@@ -73,7 +76,7 @@ jobs:
           # 判断是否需要更新
           FORCE_UPDATE=${{ github.event.inputs.force_update || 'false' }}
           if [ "$LOCAL_VERSION" = "$REMOTE_VERSION" ] && [ "$FORCE_UPDATE" != "true" ]; then
-            log "已是最新版本 $LOCAL_VERSION，无需更新"
+            log "已是最新版本，无需更新"
             exit 0
           fi
 
@@ -84,7 +87,8 @@ jobs:
           unzip -o "$TARGET_FILE"
           log "清理 $TARGET_FILE..."
           rm "$TARGET_FILE"
-          echo "$REMOTE_VERSION" > version.txt
+          echo "$REMOTE_VERSION" > $VERSION_FILE
+          echo "$REMARK_BODY" > $README_FILE
           log "更新完成，新版本: $REMOTE_VERSION"
           echo "changed=true" >> $GITHUB_OUTPUT
           echo "new_version=$REMOTE_VERSION" >> $GITHUB_OUTPUT
