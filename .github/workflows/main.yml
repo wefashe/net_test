@@ -12,6 +12,7 @@ on:
         description: '是否强制更新（忽略版本检查）'
         required: false
         default: 'false'
+        type: boolean
 
 permissions:
   contents: write
@@ -37,6 +38,7 @@ jobs:
           log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"; }
 
           log "开始检查更新..."
+          echo "changed=false" >> $GITHUB_OUTPUT # 默认未更新
 
           # 获取本地版本
           LOCAL_VERSION=$(cat version.txt 2>/dev/null || echo "")
@@ -46,23 +48,32 @@ jobs:
           log "获取最新 Release 信息..."
           RESPONSE=$(curl -s --retry 3 -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" "$REPO_URL")
           if [ $? -ne 0 ]; then
-            log "ERROR: 无法访问 GitHub API"
+            log "ERROR: 无法访问 GitHub API ($REPO_URL)"
+            exit 1
+          fi
+          
+          # 检查响应是否包含错误信息
+          if echo "$RESPONSE" | jq -e '.message' > /dev/null; then
+            log "ERROR: GitHub API 返回错误: $(echo "$RESPONSE" | jq -r '.message')"
+            if echo "$RESPONSE" | jq -e '.documentation_url' > /dev/null; then
+              log "Docs: $(echo "$RESPONSE" | jq -r '.documentation_url')"
+            fi
             exit 1
           fi
 
-          TAG_NAME=$(echo "$RESPONSE" | jq -r '.tag_name')
+          REMOTE_VERSION=$(echo "$RESPONSE" | jq -r '.tag_name')
           DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.assets[] | select(.name == "'"$TARGET_FILE"'") | .browser_download_url')
 
           if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
             log "ERROR: 未找到 $TARGET_FILE"
             exit 1
           fi
-          log "最新版本: $TAG_NAME"
+          log "最新版本: $REMOTE_VERSION"
 
           # 判断是否需要更新
           FORCE_UPDATE=${{ github.event.inputs.force_update || 'false' }}
-          if [ "$LOCAL_VERSION" = "$TAG_NAME" ] && [ "$FORCE_UPDATE" != "true" ]; then
-            log "已是最新版本，无需更新"
+          if [ "$LOCAL_VERSION" = "$REMOTE_VERSION" ] && [ "$FORCE_UPDATE" != "true" ]; then
+            log "已是最新版本 $LOCAL_VERSION，无需更新"
             exit 0
           fi
 
@@ -71,15 +82,17 @@ jobs:
           wget -q -O "$TARGET_FILE" "$DOWNLOAD_URL"
           log "解压 $TARGET_FILE..."
           unzip -o "$TARGET_FILE"
+          log "清理 $TARGET_FILE..."
           rm "$TARGET_FILE"
-          echo "$TAG_NAME" > version.txt
-          log "更新完成，新版本: $TAG_NAME"
-        
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "$REMOTE_VERSION" > version.txt
+          log "更新完成，新版本: $REMOTE_VERSION"
+          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "new_version=$REMOTE_VERSION" >> $GITHUB_OUTPUT
 
       - name: 提交更改
-        if: success() # 仅在更新成功时提交
+        if: steps.check_update.outputs.changed == 'true' # 仅在更新成功时提交
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🔄 自动同步 Worker 版本: ${{ steps.check_update.outputs.tag_name || '未知' }}"
-          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          commit_message: "🔄 自动同步 Worker 版本: ${{ steps.check_update.outputs.new_version || '未知' }}"
+          commit_author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" # 推荐使用官方 bot ID 邮箱
+          # file_pattern: "worker.js worker.min.js version.txt" # 如果解压后文件是固定的，可以指定，以防意外提交其他文件
