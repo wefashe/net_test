@@ -1,6 +1,5 @@
-## ⚙️ Bug fixes and Improvements
-- Xray VLESS, Trojan UDP leak bug fix.
-- Panle bug fixes
-- Chain proxy bug fix
-- Optimized build setup
-- Refactor and some other bug fixes
+# ⚙️ Bug fixes and Improvements
+
+- Added second WorkerLess config with Google DoH for circumstances which Cloudflare is blocked.
+- Fixed Xray Fake DNS
+- Updated Wizard tutorial.
