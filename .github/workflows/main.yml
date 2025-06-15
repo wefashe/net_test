@@ -102,6 +102,4 @@ jobs:
           branch: deploy
           commit_message: "🔄 自动同步 Worker 版本: ${{ steps.check_update.outputs.new_version || '未知' }}"
           commit_author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" # 推荐使用官方 bot ID 邮箱
-          file_pattern: ":!.github :!README.md"
-          push_options: "--force"
           # file_pattern: "worker.js worker.min.js version.txt" # 如果解压后文件是固定的，可以指定，以防意外提交其他文件
