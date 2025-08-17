@@ -1,3 +1,5 @@
 # ⚙️ Bug fixes and Improvements
 
-- Fixed Proxy IPv4 with custom port
+- Added VLESS/Trojan fingerprint selection to panel
+- Removed sing-box outbound domain_resolver, will deprecate in 1.14
+- Refactored
